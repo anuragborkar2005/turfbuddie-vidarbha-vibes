@@ -1,15 +1,35 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
-import { motion, easeInOut } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
-import { BookingFlow } from "@/components/booking/booking-flow";
-import type { Turf, Booking } from "@/lib/types/booking";
-import { DateSelector } from "@/components/date-selector";
+import Link from "next/link";
+import { motion, useReducedMotion } from "framer-motion";
+import { Star } from "lucide-react";
 
-import { doc, getDoc } from "firebase/firestore";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FormControl, FormItem, FormLabel } from "@/components/ui/form";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { FormProvider, useForm } from "react-hook-form";
+import Header from "@/components/header";
+
+import {
+  collection,
+  DocumentData,
+  getDocs,
+  QuerySnapshot,
+  Timestamp,
+  GeoPoint,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
 interface TurfPageProps {
@@ -33,7 +53,7 @@ function formatTimeSlots(
 
 export default function TurfDetailsPage({ params }: TurfPageProps) {
   const router = useRouter();
-  const { turfId } = use(params);
+  const turfId = params.id;
   const [turf, setTurf] = useState<Turf | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date();
@@ -43,110 +63,300 @@ export default function TurfDetailsPage({ params }: TurfPageProps) {
   });
 
   useEffect(() => {
-    async function fetchTurf() {
+    // if (navigator.geolocation) {
+    //   navigator.geolocation.getCurrentPosition(
+    //     showCity,
+    //     handleGeolocationError,
+    //     { enableHighAccuracy: true }
+    //   );
+    // }
+    async function fetchTurfs() {
+      setLoading(true);
+
       try {
-        const docRef = doc(db, "Turfs", turfId);
-        const docSnap = await getDoc(docRef);
+        const turfCollection = collection(db, "Turfs");
+        const snapshot: QuerySnapshot<DocumentData> = await getDocs(
+          turfCollection
+        );
 
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+        const turfList: Turf[] = snapshot.docs.map((doc) => {
+          const data = doc.data();
 
-          setTurf({
-            id: turfId,
-            name: data.name,
-            address: data.address,
-            image: data.imageurl,
-            rating: data.rating,
-            price: data.price,
-            timeSlots: formatTimeSlots(data.timeSlots || []),
+          // Normalize Firestore GeoPoint and Timestamp
+          const locationData = data.location as GeoPoint | undefined;
+          const createdAtData = data.createdAt as Timestamp | undefined;
 
+          return {
+            id: doc.id,
+            name: data.name || "",
+            address: data.address || "",
+            image: data.imageurl || "", // map imageurl to image
+            rating: data.rating || 0,
+            price: data.price || 0,
+            timeSlots: data.timeSlots || [],
             amenities: data.amenities || [],
             description: data.description || "",
-            location: data.location
-              ? { lat: data.location.latitude, lng: data.location.longitude }
+            location: locationData
+              ? { lat: locationData.latitude, lng: locationData.longitude }
               : { lat: 0, lng: 0 },
             ownerId: data.ownerId || "",
-            createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
-          });
-        } else {
-          console.error("No turf found with ID:", turfId);
-        }
-      } catch (error) {
-        console.error("Error fetching turf:", error);
+            createdAt: createdAtData ? createdAtData.toDate() : new Date(),
+          };
+        });
+
+        setTurfs(turfList);
+      } catch (err) {
+        console.error("Failed to fetch turfs:", err);
+      } finally {
+        setLoading(false);
       }
     }
+    fetchTurfs();
+  }, []);
 
-    fetchTurf();
-  }, [turfId]);
-
-  const handleBookingComplete = (booking: Booking) => {
-    console.log("Booking complete:", booking);
-  };
-
-  if (!turf) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-white">
-        Loading turf details...
-      </div>
+  // Compute unique city list for filter dropdown
+  const cities = useMemo(() => {
+    const unique = Array.from(
+      new Set(turfs.map((t) => extractCity(t.address)))
     );
+    return ["all", ...unique];
+  }, [turfs]);
+
+  // Geolocation city fetch helper
+  async function showCity(position: GeolocationPosition) {
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+
+    try {
+      const response = await fetch(
+        `/api/geocode?lat=${latitude}&lng=${longitude}`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Geolocation API call failed with status: ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(`Geolocation API returned an error: ${data.error}`);
+      }
+
+      // Assuming the backend returns city like this
+      const city =
+        data.results?.[0]?.address_components?.find((c: { types: string[] }) =>
+          c.types.includes("locality")
+        )?.long_name ?? "Unknown";
+
+      console.log(`Your city is: ${city}.`);
+    } catch (err) {
+      console.error("Failed to get city from coordinates:", err);
+    }
   }
 
+  // Geolocation error handler
+  function handleGeolocationError(error: GeolocationPositionError) {
+    switch (error.code) {
+      case error.PERMISSION_DENIED:
+        setGeolocationPermissionDenied(true);
+        console.error("User denied the request for Geolocation.");
+        break;
+      case error.POSITION_UNAVAILABLE:
+        setGeolocationUnavailable(true);
+        console.error("Location information is unavailable.");
+        break;
+      case error.TIMEOUT:
+        console.error("The request to get user location timed out.");
+        break;
+      default:
+        console.error(
+          `An unknown geolocation error occurred: ${error.message}`
+        );
+    }
+  }
+
+  // Filter turfs per UI filters
+  const filtered = useMemo(() => {
+    return turfs.filter((t) => {
+      const inSearch =
+        t.name.toLowerCase().includes(search.toLowerCase()) ||
+        t.address.toLowerCase().includes(search.toLowerCase());
+      const inLocation =
+        location === "all" || extractCity(t.address) === location;
+      const inPrice = t.price >= price[0] && t.price <= price[1];
+      const inRating = t.rating >= minRating;
+      return inSearch && inLocation && inPrice && inRating;
+    });
+  }, [turfs, search, location, price, minRating]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black  to-gray-900 text-white">
-      <div className="max-w-6xl mx-auto p-4 md:p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-          {/* Left: Immersive image */}
+    <>
+      <Header />
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 py-10 px-4">
+        <div className="max-w-7xl mx-auto space-y-8">
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: easeInOut }}
-            className="relative h-[60vh] md:h-[90vh] rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10"
+            transition={{ duration: 0.5 }}
           >
-            <Image
-              src={turf.image}
-              alt={turf.name}
-              fill
-              priority
-              className="object-cover"
-              sizes="(min-width: 768px) 50vw, 100vw"
-            />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-black/0" />
-            <button
-              type="button"
-              onClick={() => router.back()}
-              aria-label="Go back"
-              className="absolute top-4 left-4 z-10 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm text-white/90 hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-400 transition"
-            >
-              <ArrowLeft size={16} aria-hidden="true" /> Back
-            </button>
+            <h1 className="text-4xl font-bold tracking-tight mt-6">
+              Find your turf 🏟️
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Filter by location, rating, and price. Let’s play.
+            </p>
+          </motion.div>
 
-            <div className="absolute bottom-4 left-4 right-4 z-10">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs text-white/90 backdrop-blur-sm ring-1 ring-white/15">
-                {turf.name} • {turf.address}
+          <Card className="glass-card bg-gradient-to-br from-gray-950 via-black to-gray-900">
+            <CardHeader>
+              <CardTitle>Filters</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <FormProvider {...form}>
+                  <FormItem>
+                    <FormLabel>Search</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search turfs"
+                        inputMode="search"
+                      />
+                    </FormControl>
+                  </FormItem>
+
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                    <FormControl>
+                      <Select
+                        value={location}
+                        onValueChange={(val) => setLocation(val)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cities.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c === "all" ? "All cities" : c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                  </FormItem>
+
+                  <FormItem>
+                    <FormLabel>
+                      Price: {formatINR(price[0])} – {formatINR(price[1])}
+                    </FormLabel>
+                    <FormControl>
+                      <Slider
+                        value={price}
+                        min={400}
+                        max={1000}
+                        step={50}
+                        onValueChange={(v: number[]) => setPrice([v[0], v[1]])}
+                      />
+                    </FormControl>
+                  </FormItem>
+
+                  <FormItem>
+                    <FormLabel>Minimum rating</FormLabel>
+                    <FormControl>
+                      <div className="flex gap-2 flex-wrap">
+                        {[0, 1, 2, 3, 4, 5].map((r) => (
+                          <Button
+                            key={r}
+                            size="sm"
+                            variant={r === minRating ? "default" : "outline"}
+                            onClick={() => setMinRating(r)}
+                            aria-pressed={r === minRating}
+                          >
+                            {r} <Star className="w-3 h-3 ml-1 fill-current" />
+                          </Button>
+                        ))}
+                      </div>
+                    </FormControl>
+                  </FormItem>
+                </FormProvider>
               </div>
+
+              <Separator className="my-6" />
+
+              <div className="text-muted-foreground text-sm">
+                Showing {filtered.length} turf{filtered.length !== 1 && "s"}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((t, i) => (
+              <motion.div
+                key={t.id}
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05, duration: 0.4 }}
+              >
+                <Card className="glass-card overflow-hidden bg-gradient-to-br from-gray-950 via-black to-gray-900">
+                  <div className="relative h-44 w-full">
+                    {t.image && (
+                      <Image
+                        src={t.image}
+                        alt={`Image of ${t.name}`}
+                        fill
+                        className="object-cover"
+                      />
+                    )}
+                  </div>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">{t.name}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {t.address.length > 50
+                            ? `${t.address.slice(0, 50)}...`
+                            : t.address}
+                        </p>
+                      </div>
+                      <span className="flex items-center gap-1 text-sm">
+                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                        {t.rating.toFixed(1)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <div>
+                        <span className="font-medium">
+                          {formatINR(t.price)}
+                        </span>{" "}
+                        <span className="text-muted-foreground">/ hour</span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        {t.timeSlots.length} slots
+                      </div>
+                    </div>
+                    <Link href={`/turfs/${t.id}`} className="w-full pt-2">
+                      <Button className="w-full" variant="secondary">
+                        View Details
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+
+          {filtered.length === 0 && (
+            <div className="text-center text-muted-foreground py-16">
+              No turfs match your filters. Try adjusting your search or
+              selection.
             </div>
-          </motion.div>
-
-          {/* Right: Date selector + BookingFlow */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: easeInOut }}
-            className="md:sticky md:top-6 max-h-[90vh] overflow-auto hide-scrollbar bg-gray-900/60 backdrop-blur-sm rounded-2xl shadow-xl ring-1 ring-white/10 p-6 space-y-6"
-          >
-            <DateSelector
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-            />
-
-            <BookingFlow
-              turf={turf}
-              selectedDate={selectedDate}
-              onBookingComplete={handleBookingComplete}
-            />
-          </motion.div>
+          )}
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -7,6 +7,11 @@ export async function POST(request: NextRequest) {
   try {
     const { paymentId, orderId, signature, bookingData } = await request.json();
 
+    // Basic input validation
+    if (!paymentId || !orderId || !signature || !bookingData) {
+      return NextResponse.json({ error: "Missing required payment data" }, { status: 400 });
+    }
+
     // Verify payment signature
     const body = orderId + "|" + paymentId;
     const expectedSignature = crypto
@@ -24,14 +29,22 @@ export async function POST(request: NextRequest) {
         createdAt: new Date(),
       };
 
-      await addDoc(collection(db, "bookings"), booking);
+      try {
+        const docRef = await addDoc(collection(db, "bookings"), booking);
+        return NextResponse.json({ verified: true, bookingId: docRef.id });
+      } catch (firestoreError) {
+        console.error("Error saving booking to Firestore:", firestoreError);
+        return NextResponse.json(
+          { error: "Failed to save booking details" },
+          { status: 500 }
+        );
+      }
 
-      return NextResponse.json({ verified: true, bookingId: booking.id });
     } else {
       return NextResponse.json({ verified: false }, { status: 400 });
     }
   } catch (error) {
-    console.error("Payment verification error:", error);
+    console.error("Payment verification process error:", error);
     return NextResponse.json(
       { error: "Payment verification failed" },
       { status: 500 }

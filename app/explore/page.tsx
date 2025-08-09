@@ -77,6 +77,10 @@ const extractCity = (address: string) => {
 export default function ExplorePage() {
   const form = useForm();
   const shouldReduceMotion = useReducedMotion();
+  const [loading, setLoading] = useState(true);
+  const [geolocationPermissionDenied, setGeolocationPermissionDenied] =
+    useState(false);
+  const [geolocationFetched, setGeolocationFetched] = useState(false);
 
   const [turfs, setTurfs] = useState<Turf[]>([]);
 
@@ -87,9 +91,22 @@ export default function ExplorePage() {
 
   useEffect(() => {
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(showCity);
+      const successCallback = (position: GeolocationPosition) => {
+        showCity(position);
+        setGeolocationFetched(true);
+      };
+      const errorCallback = (error: GeolocationPositionError) => {
+        handleGeolocationError(error);
+      };
+      navigator.geolocation.getCurrentPosition(
+        showCity,
+        handleGeolocationError,
+        { enableHighAccuracy: true }
+      );
     }
     async function fetchTurfs() {
+      setLoading(true);
+
       try {
         const turfCollection = collection(db, "Turfs");
         const snapshot: QuerySnapshot<DocumentData> = await getDocs(
@@ -139,21 +156,44 @@ export default function ExplorePage() {
   }, [turfs]);
 
   // Geolocation city fetch helper
-  function showCity(position: GeolocationPosition) {
+  async function showCity(position: GeolocationPosition) {
     const latitude = position.coords.latitude;
     const longitude = position.coords.longitude;
 
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=YOUR_API_KEY`;
-    fetch(url)
-      .then((res) => res.json())
-      .then((data) => {
-        const city =
-          data.results[0]?.address_components.find((c: { types: string[] }) =>
-            c.types.includes("locality")
-          )?.long_name ?? "Unknown";
-        console.log(`Your city is ${city}.`);
-      })
-      .catch((err) => console.log(err));
+    try {
+      // Call a backend endpoint to securely get the city
+      const response = await fetch(
+        `/api/geocode?lat=${latitude}&lng=${longitude}`
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(
+            `Geolocation API endpoint not found at /api/geocode. Status: ${response.status}`
+          );
+        } else {
+          throw new Error(
+            `Geolocation API call failed with status: ${response.status}`
+          );
+        }
+      }
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(`Geolocation API returned an error: ${data.error}`);
+      }
+
+      // Assuming the backend returns the city in data.city
+      // If using Google Geocoding API response structure:
+      const city =
+        data.results[0]?.address_components.find((c: { types: string[] }) =>
+          c.types.includes("locality")
+        )?.long_name ?? "Unknown";
+      console.log(`Your city is: ${city}.`);
+    } catch (err) {
+      console.error("Failed to get city from coordinates:", err);
+    }
   }
 
   // Filter turfs per UI filters
@@ -170,6 +210,23 @@ export default function ExplorePage() {
     });
   }, [turfs, search, location, price, minRating]);
 
+  function handleGeolocationError(error: GeolocationPositionError) {
+    switch (error.code) {
+      case error.PERMISSION_DENIED:
+        setGeolocationPermissionDenied(true);
+        console.error("User denied the request for Geolocation.");
+        break; // Add break here
+      case error.POSITION_UNAVAILABLE:
+        console.error("Location information is unavailable.");
+      case error.TIMEOUT:
+        console.error("The request to get user location timed out.");
+      default:
+        console.error(
+          `An unknown geolocation error occurred: ${error.message}`
+        );
+    }
+  }
+
   return (
     <>
       <div>
@@ -183,7 +240,7 @@ export default function ExplorePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-4xl font-bold tracking-tight">
+            <h1 className="text-4xl font-bold tracking-tight mt-6">
               Find your turf 🏟️
             </h1>
             <p className="text-muted-foreground mt-2">
