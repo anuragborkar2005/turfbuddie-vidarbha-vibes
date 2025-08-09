@@ -1,10 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { MapPin, Download, Users, MapIcon, Calendar } from "lucide-react";
+import { MapPin, Download, Users, MapIcon, Calendar, Router } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const HeroSection = () => {
   const [parallaxOffset, setParallaxOffset] = useState(0);
+
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -65,6 +68,7 @@ const HeroSection = () => {
               size="lg"
               variant="outline"
               className="text-lg px-8 py-6 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+              onClick={()=> router.push("/explore")}
             >
               Explore Turfs
             </Button>
