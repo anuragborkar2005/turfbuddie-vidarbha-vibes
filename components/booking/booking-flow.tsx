@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,21 +26,33 @@ export function BookingFlow({
   const { user, profile } = useAuth();
 
   // Derived display values for separated format
-  const dateObj = new Date(selectedDate);
+  const dateObj = useMemo(() => new Date(selectedDate), [selectedDate]);
 
-  const daySlot = dateObj.toLocaleDateString("en-US", {
-    weekday: "long",
-  });
+  const daySlot = useMemo(
+    () =>
+      dateObj.toLocaleDateString("en-US", {
+        weekday: "long",
+      }),
+    [dateObj]
+  );
 
-  const monthSlotShort = dateObj.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-  });
+  const monthSlotShort = useMemo(
+    () =>
+      dateObj.toLocaleDateString("en-US", {
+        day: "numeric",
+        month: "short",
+      }),
+    [dateObj]
+  );
 
-  const monthSlotLongYear = dateObj.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthSlotLongYear = useMemo(
+    () =>
+      dateObj.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      }),
+    [dateObj]
+  );
 
   const handleSlotSelection = (slot: TimeSlot) => {
     if (slot.isAvailable) setSelectedSlot(slot);
@@ -88,7 +100,7 @@ export function BookingFlow({
       };
 
       // Initiate payment
-      const bookingId = await initiatePayment({
+      const paymentId = await initiatePayment({
         amount: selectedSlot.price.toString(),
         currency: "INR",
         orderId,
@@ -100,22 +112,41 @@ export function BookingFlow({
         bookingDetails: bookingData,
       });
 
-      toast("Booking Confirmed!", {
-        description: "Your turf has been booked successfully.",
+      // Verify payment and save booking
+      const verifyResponse = await fetch("/api/payment/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId,
+          orderId,
+          signature: "", // Replace with signature from Razorpay callback
+          bookingData: {
+            ...bookingData,
+            transactionId: paymentId,
+          },
+        }),
       });
 
-      onBookingComplete({
-        ...bookingData,
-        id: bookingId,
-        transactionId: orderId, // This is not entirely correct, but we'll use the orderId for now
-        status: "confirmed",
-        createdAt: new Date(),
-      });
-    } catch (error: unknown) {
+      const { verified, bookingId } = await verifyResponse.json();
+
+      if (verified) {
+        toast("Booking Confirmed!", {
+          description: "Your turf has been booked successfully.",
+        });
+
+        onBookingComplete({
+          ...bookingData,
+          id: bookingId,
+          transactionId: paymentId,
+          status: "confirmed",
+          createdAt: new Date(),
+        });
+      }
+    } catch (error: any) {
       toast("Booking Failed", {
-        description: (error as Error).message,
+        description: error.message,
       });
-      console.error((error as Error).message);
+      console.error(error.message);
     } finally {
       setLoading(false);
     }

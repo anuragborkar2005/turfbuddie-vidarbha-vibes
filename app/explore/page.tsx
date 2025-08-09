@@ -83,6 +83,11 @@ export default function ExplorePage() {
   const [geolocationFetched, setGeolocationFetched] = useState(false);
 
   const [turfs, setTurfs] = useState<Turf[]>([]);
+<<<<<<< HEAD
+=======
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+>>>>>>> parent of 0ab11fd (fix: resolve inconsistencies and lint errors)
 
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("all");
@@ -160,6 +165,7 @@ export default function ExplorePage() {
     const latitude = position.coords.latitude;
     const longitude = position.coords.longitude;
 
+<<<<<<< HEAD
     try {
       // Call a backend endpoint to securely get the city
       const response = await fetch(
@@ -194,6 +200,19 @@ export default function ExplorePage() {
     } catch (err) {
       console.error("Failed to get city from coordinates:", err);
     }
+=======
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=YOUR_API_KEY`;
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        const city =
+          data.results[0]?.address_components.find((c: any) =>
+            c.types.includes("locality")
+          )?.long_name ?? "Unknown";
+        console.log(`Your city is ${city}.`);
+      })
+      .catch((err) => console.log(err));
+>>>>>>> parent of 0ab11fd (fix: resolve inconsistencies and lint errors)
   }
 
   // Filter turfs per UI filters

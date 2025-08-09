@@ -25,7 +25,7 @@ export interface Turf {
 }
 
 export interface Booking {
-  id: string;
+  id?: string;
   turfId: string;
   timeSlot: string;
   daySlot: string;

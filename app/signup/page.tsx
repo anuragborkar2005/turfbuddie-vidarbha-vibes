@@ -109,8 +109,8 @@ export default function SignUpPage() {
 
       router.push("/login");
       form.reset();
-    } catch (error: unknown) {
-      toast((error as Error)?.message || "Signup failed");
+    } catch (error: any) {
+      toast(error?.message || "Signup failed");
     } finally {
       setLoading(false);
     }
