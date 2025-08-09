@@ -7,7 +7,7 @@ import { motion, easeInOut } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { BookingFlow } from "@/components/booking/booking-flow";
 import type { Turf, Booking } from "@/lib/types/booking";
-import { DateSelector } from "@/components/date-selector"; // Corrected typo
+import { DateSelector } from "@/components/date-selector";
 
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
@@ -19,8 +19,17 @@ interface TurfPageProps {
 }
 
 // Helper to map Firestore timeSlots to expected format
-function formatTimeSlots(rawTimeSlots: any[]): Turf["timeSlots"] {
+interface RawTimeSlot {
+ timeSlot?: string;
+ status?: string;
+ price?: number;
+}
+
+function formatTimeSlots(rawTimeSlots: RawTimeSlot[]): Turf["timeSlots"] {
   return rawTimeSlots.map((slot, idx) => ({
+    // Use optional chaining and provide default values in case properties are missing
+    // Although the prompt specifically asks to replace `any`, ensuring robustness for potentially incomplete data is good practice.
+    // The primary change here is defining the shape of `RawTimeSlot`.
     id: `slot_${idx}`,
     startTime: slot.timeSlot?.split(" - ")[0] || "00:00",
     endTime: slot.timeSlot?.split(" - ")[1] || "01:00",
@@ -31,8 +40,8 @@ function formatTimeSlots(rawTimeSlots: any[]): Turf["timeSlots"] {
 
 export default function TurfDetailsPage({ params }: TurfPageProps) {
   const router = useRouter();
-  // Reverted to direct access to avoid 'Usable' type errors.
-  // This will produce a warning but is supported for migration.
+  // Reverted to direct access to resolve TypeScript errors.
+  // The console warning is for a future Next.js version and can be addressed later.
   const turfId = params.id;
   
   const [turf, setTurf] = useState<Turf | null>(null);
@@ -41,7 +50,7 @@ export default function TurfDetailsPage({ params }: TurfPageProps) {
   const [selectedDate, setSelectedDate] = useState("");
 
   useEffect(() => {
-    setHasMounted(true); // Ensures date is only set on client
+    setHasMounted(true);
     const d = new Date();
     const off = d.getTimezoneOffset();
     const local = new Date(d.getTime() - off * 60 * 1000);
@@ -62,7 +71,6 @@ export default function TurfDetailsPage({ params }: TurfPageProps) {
           const locationData = data.location;
           const createdAtData = data.createdAt;
           
-          // Completed the turf object to match the 'Turf' type
           setTurf({
             id: turfId,
             name: data.name || "",
@@ -96,7 +104,6 @@ export default function TurfDetailsPage({ params }: TurfPageProps) {
     console.log("Booking complete:", booking);
   };
 
-  // Prevents hydration errors by rendering a loading state on the server
   if (!hasMounted || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
@@ -105,7 +112,6 @@ export default function TurfDetailsPage({ params }: TurfPageProps) {
     );
   }
 
-  // This check is now safe because loading is complete
   if (!turf) {
      return (
       <div className="min-h-screen flex items-center justify-center text-white">
@@ -118,7 +124,6 @@ export default function TurfDetailsPage({ params }: TurfPageProps) {
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black  to-gray-900 text-white">
       <div className="max-w-6xl mx-auto p-4 md:p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-          {/* Left: Immersive image */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -150,7 +155,6 @@ export default function TurfDetailsPage({ params }: TurfPageProps) {
             </div>
           </motion.div>
 
-          {/* Right: Date selector + BookingFlow */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

@@ -141,9 +141,9 @@ export function BookingFlow({
           status: "confirmed",
           createdAt: new Date(),
         });
-      }
-    } catch (error: any) {
-      toast("Booking Failed", {
+      } else throw new Error("Payment verification failed");
+    } catch (error: unknown) {
+ toast("Booking Failed", {
         description: error.message,
       });
       console.error(error.message);

@@ -81,10 +81,8 @@ export default function ExplorePage() {
   // State for client-side readiness and data loading
   const [hasMounted, setHasMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
-  const [geolocationPermissionDenied, setGeolocationPermissionDenied] = useState(false);
-  const [geolocationUnavailable, setGeolocationUnavailable] = useState(false);
   const [turfs, setTurfs] = useState<Turf[]>([]);
+
   
   // Filter states
   const [search, setSearch] = useState("");
@@ -151,14 +149,8 @@ export default function ExplorePage() {
     return ["all", ...unique];
   }, [turfs]);
 
-  async function showCity(position: GeolocationPosition) {
-    // ... (geolocation helpers remain the same)
-  }
-
-  function handleGeolocationError(error: GeolocationPositionError) {
-    // ...
-  }
-
+  function showCity(position: GeolocationPosition) {} // Keep empty function for API compatibility
+ function handleGeolocationError(position: GeolocationPositionError) {} // Keep empty function for API compatibility
   const filtered = useMemo(() => {
     return turfs.filter((t) => {
       const inSearch =
@@ -289,7 +281,7 @@ export default function ExplorePage() {
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {filtered.map((t, i) => (
                   <motion.div
-                    key={t.id}
+ key={t.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05, duration: shouldReduceMotion ? 0 : 0.4 }}

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { MapPin, Download, Users, MapIcon, Calendar, Router } from "lucide-react";
+import { MapPin, Download, Users, MapIcon, Calendar} from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const HeroSection = () => {
