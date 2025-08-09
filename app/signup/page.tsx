@@ -34,6 +34,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { register } from "@/lib/firebase/auth";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const genderOptions = ["Male", "Female", "Other"] as const;
 
@@ -67,6 +70,8 @@ type SignUpFormData = z.infer<typeof signupSchema>;
 export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
 
+  const router = useRouter();
+
   const form = useForm<SignUpFormData>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
@@ -84,11 +89,31 @@ export default function SignUpPage() {
     mode: "onTouched",
   });
 
-  const onSubmit = async (values: SignUpFormData) => {
-    setLoading(true);
-    console.log("Sign Up:", values);
-    await new Promise((res) => setTimeout(res, 1800));
-    setLoading(false);
+  const onSubmit = async (data: SignUpFormData) => {
+    try {
+      setLoading(true);
+
+      const formattedDOB = format(new Date(data.dob), "dd/MM/yyyy");
+
+      await register(data.email, data.password, {
+        fullname: data.fullName,
+        gender: data.gender,
+        dob: formattedDOB,
+        mobile: data.mobile,
+        city: data.city,
+        pincode: data.pincode,
+        state: data.state,
+      });
+
+      toast("Account created! Please check your email for verification.");
+
+      router.push("/login");
+      form.reset();
+    } catch (error: any) {
+      toast(error?.message || "Signup failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

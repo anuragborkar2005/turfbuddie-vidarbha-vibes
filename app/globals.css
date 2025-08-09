@@ -163,4 +163,13 @@
     transform: translateY(-8px) scale(1.02);
     box-shadow: var(--shadow-glow), var(--shadow-card);
   }
+  /* For modern browsers */
+  .hide-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE 10+ */
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
 }

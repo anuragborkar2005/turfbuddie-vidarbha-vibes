@@ -18,10 +18,13 @@ import {
   FormMessage,
   FormLabel, // use this for automatic associations
 } from "@/components/ui/form";
+import { login } from "@/lib/firebase/auth";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 // Validation Schema
 const loginSchema = z.object({
-  email: z.string().email("Enter a valid email address"),
+  email: z.email("Enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -29,6 +32,8 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const shouldReduceMotion = useReducedMotion();
+
+  const router = useRouter();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -40,12 +45,18 @@ export default function LoginPage() {
   const onSubmit = async (values: LoginFormData) => {
     try {
       // simulate API
-      await new Promise((res) => setTimeout(res, 1200));
+      // await new Promise((res) => setTimeout(res, 1200));
       // TODO: handle success (redirect / dashboard toast)
       // e.g., toast.success("Welcome back!");
+      const { email, password } = values;
+      await login(email, password);
+      toast.success("Logged in successfully!");
+      console.log("Logged in successfully!");
+      router.push("/explore");
     } catch (e) {
       // TODO: surface an error banner / toast
-      // e.g., toast.error("Unable to sign in. Please try again.");
+      toast.error("Unable to sign in. Please try again." + e);
+      console.error("Unable to sign in. Please try again." + e);
     }
   };
 

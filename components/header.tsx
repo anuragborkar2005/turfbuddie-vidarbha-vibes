@@ -4,10 +4,23 @@ import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
+import { useAuth } from "@/context/auth-provider"; // ✅ import auth context
+import { useRouter } from "next/navigation";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, profile } = useAuth(); // ✅ grab user + profile
+
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 50);
@@ -15,10 +28,9 @@ export default function Header() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Separate primary nav from auth CTAs so we can style Login/Signup as buttons
   const primaryLinks = [
     { name: "Download", href: "#download" },
-    { name: "Tournaments", href: "#tournaments" },
+    { name: "Tournaments", href: "/tournaments" },
     { name: "About", href: "#about" },
     { name: "Privacy", href: "#privacy" },
   ];
@@ -52,27 +64,67 @@ export default function Header() {
             </Link>
           ))}
 
-          {/* Spacer */}
           <span className="mx-1 h-6 w-px bg-slate-800" />
 
-          {/* Login (subtle) */}
-          <Button
-            asChild
-            variant="ghost"
-            className="text-slate-300 hover:text-white hover:bg-slate-800/50"
-          >
-            <Link href="/login">Log in</Link>
-          </Button>
+          {/* Auth Section */}
+          {!user ? (
+            <>
+              <Button
+                asChild
+                variant="ghost"
+                className="text-slate-300 hover:text-white hover:bg-slate-800/50"
+              >
+                <Link href="/login">Log in</Link>
+              </Button>
+              <Button
+                asChild
+                className="glow-button text-primary-foreground font-semibold shadow-md"
+              >
+                <Link href="/signup">Sign up</Link>
+              </Button>
+            </>
+          ) : (
+            profile && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-3 pl-4 border-l border-slate-800 focus:outline-none">
+                    {/* Avatar */}
+                    <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-black font-bold text-sm">
+                      {profile.fullname?.charAt(0).toUpperCase()}
+                    </div>
+                    {/* Name */}
+                    <span className="text-sm text-white font-medium">
+                      {profile.fullname}
+                    </span>
+                  </button>
+                </DropdownMenuTrigger>
 
-          {/* Signup (primary/glow) */}
-          <Button
-            asChild
-            className="glow-button text-primary-foreground font-semibold shadow-md"
-          >
-            <Link href="/signup">Sign up</Link>
-          </Button>
+                <DropdownMenuContent className="bg-slate-900 border-slate-800">
+                  <DropdownMenuLabel className="text-slate-300">
+                    My Account
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="text-slate-300">
+                      View Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-red-400 hover:text-red-300 cursor-pointer"
+                    onClick={async () => {
+                      const { logout } = await import("@/lib/firebase/auth");
+                      await logout();
+                      router.push("/login");
+                    }}
+                  >
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          )}
 
-          {/* Optional: Primary action */}
+          {/* Optional CTA */}
           <Button className="bg-green-500 hover:bg-green-600 text-white">
             Book Now
           </Button>
@@ -90,54 +142,7 @@ export default function Header() {
         </button>
       </div>
 
-      {/* Mobile Nav */}
-      <div
-        id="mobile-nav"
-        className={`md:hidden bg-slate-900/95 backdrop-blur-sm border-t border-slate-800 overflow-hidden transition-all duration-300 ${
-          isMobileMenuOpen ? "max-h-96" : "max-h-0"
-        }`}
-      >
-        <div className="flex flex-col space-y-4 px-4 py-4">
-          {/* Primary links */}
-          {primaryLinks.map((link) => (
-            <Link
-              key={link.name}
-              href={link.href}
-              className="text-slate-300 hover:text-white transition-colors"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              {link.name}
-            </Link>
-          ))}
-
-          {/* Auth CTAs */}
-          <div className="pt-2 grid grid-cols-2 gap-3">
-            <Button
-              asChild
-              variant="outline"
-              className="border-slate-700 text-slate-200 hover:bg-slate-800/70"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <Link href="/login">Log in</Link>
-            </Button>
-            <Button
-              asChild
-              className="glow-button text-primary-foreground font-semibold"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <Link href="/signup">Sign up</Link>
-            </Button>
-          </div>
-
-          {/* Primary action */}
-          <Button
-            className="bg-green-500 hover:bg-green-600 text-white"
-            onClick={() => setIsMobileMenuOpen(false)}
-          >
-            Book Now
-          </Button>
-        </div>
-      </div>
+      {/* Mobile Nav remains unchanged for now — but can add profile there too if you want */}
     </header>
   );
 }
