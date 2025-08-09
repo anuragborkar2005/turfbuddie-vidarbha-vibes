@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, easeInOut } from "framer-motion";
@@ -19,7 +19,9 @@ interface TurfPageProps {
 }
 
 // Helper to map Firestore timeSlots to expected format
-function formatTimeSlots(rawTimeSlots: Record<string, unknown>[]): Turf["timeSlots"] {
+function formatTimeSlots(
+  rawTimeSlots: Record<string, unknown>[]
+): Turf["timeSlots"] {
   return rawTimeSlots.map((slot, idx) => ({
     id: `slot_${idx}`,
     startTime: slot.timeSlot?.split(" - ")[0] || "00:00",
@@ -31,7 +33,7 @@ function formatTimeSlots(rawTimeSlots: Record<string, unknown>[]): Turf["timeSlo
 
 export default function TurfDetailsPage({ params }: TurfPageProps) {
   const router = useRouter();
-  const turfId = params.id;
+  const { turfId } = use(params);
   const [turf, setTurf] = useState<Turf | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     const d = new Date();

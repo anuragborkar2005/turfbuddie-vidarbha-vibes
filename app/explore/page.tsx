@@ -79,7 +79,6 @@ export default function ExplorePage() {
   const shouldReduceMotion = useReducedMotion();
 
   const [turfs, setTurfs] = useState<Turf[]>([]);
-  
 
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("all");
@@ -91,9 +90,6 @@ export default function ExplorePage() {
       navigator.geolocation.getCurrentPosition(showCity);
     }
     async function fetchTurfs() {
-      setLoading(true);
-      setError(null);
-
       try {
         const turfCollection = collection(db, "Turfs");
         const snapshot: QuerySnapshot<DocumentData> = await getDocs(
@@ -128,9 +124,7 @@ export default function ExplorePage() {
         setTurfs(turfList);
       } catch (err) {
         console.error("Failed to fetch turfs:", err);
-        setError("Failed to load turfs. Please try again later.");
       } finally {
-        setLoading(false);
       }
     }
     fetchTurfs();
