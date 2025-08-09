@@ -53,8 +53,9 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
   return new Promise((resolve, reject) => {
     const key = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     if (!key) {
-      reject(new Error("Razorpay key is missing in environment variables"));
-      return;
+      return reject(
+        new Error("Razorpay key is missing in environment variables")
+      );
     }
 
     const razorpayOptions: RazorpayOptions = {
@@ -72,8 +73,31 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
       theme: {
         color: "#16A249",
       },
-      handler(response) {
-        resolve(response.razorpay_payment_id);
+      handler: async (response) => {
+        try {
+          const verificationResponse = await fetch("/api/payment/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              paymentId: response.razorpay_payment_id,
+              orderId: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              bookingData: {
+                ...options.bookingDetails,
+                transactionId: response.razorpay_payment_id,
+              },
+            }),
+          });
+
+          const verificationResult = await verificationResponse.json();
+          if (verificationResult.verified) {
+            resolve(verificationResult.bookingId);
+          } else {
+            reject(new Error("Payment verification failed"));
+          }
+        } catch (error) {
+          reject(error);
+        }
       },
       modal: {
         ondismiss() {
@@ -82,40 +106,9 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
       },
     };
 
-    if (process.env.NODE_ENV === "development") {
-      setTimeout(() => {
-        resolve("pay_dummy_" + Date.now());
-      }, 2000);
-      return;
-    }
-
     const razorpay = new window.Razorpay(razorpayOptions);
     razorpay.open();
   });
 };
 
-export const verifyPayment = async (
-  paymentId: string,
-  orderId: string,
-  signature: string
-): Promise<boolean> => {
-  try {
-    const response = await fetch("/api/payment/verify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        paymentId,
-        orderId,
-        signature,
-      }),
-    });
 
-    const result = await response.json();
-    return result.verified;
-  } catch (error) {
-    console.error("Payment verification failed:", error);
-    return false;
-  }
-};

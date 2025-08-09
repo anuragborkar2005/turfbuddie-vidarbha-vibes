@@ -47,17 +47,17 @@ export const register = async (
     await setDoc(doc(db, "users", user.uid), userProfile);
 
     return { user, profile: userProfile };
-  } catch (error: any) {
-    if (error.code === "auth/email-already-in-use") {
+  } catch (error: unknown) {
+    if ((error as { code: string }).code === "auth/email-already-in-use") {
       throw new Error("This email is already registered.");
     }
-    if (error.code === "auth/weak-password") {
+    if ((error as { code: string }).code === "auth/weak-password") {
       throw new Error("Password must be at least 6 characters.");
     }
-    if (error.code === "auth/invalid-email") {
+    if ((error as { code: string }).code === "auth/invalid-email") {
       throw new Error("Invalid email address.");
     }
-    throw new Error(error.message || "Registration failed.");
+    throw new Error((error as Error).message || "Registration failed.");
   }
 };
 
@@ -73,17 +73,17 @@ export const login = async (email: string, password: string) => {
     }
 
     return user;
-  } catch (error: any) {
-    if (error.code === "auth/user-not-found") {
+  } catch (error: unknown) {
+    if ((error as { code: string }).code === "auth/user-not-found") {
       throw new Error("No account found with this email.");
     }
-    if (error.code === "auth/wrong-password") {
+    if ((error as { code: string }).code === "auth/wrong-password") {
       throw new Error("Incorrect password.");
     }
-    if (error.code === "auth/too-many-requests") {
+    if ((error as { code: string }).code === "auth/too-many-requests") {
       throw new Error("Too many failed attempts. Try again later.");
     }
-    throw new Error(error.message || "Login failed.");
+    throw new Error((error as Error).message || "Login failed.");
   }
 };
 
@@ -93,8 +93,8 @@ export const login = async (email: string, password: string) => {
 export const logout = async () => {
   try {
     await signOut(auth);
-  } catch (error: any) {
-    throw new Error(error.message || "Logout failed.");
+  } catch (error: unknown) {
+    throw new Error((error as Error).message || "Logout failed.");
   }
 };
 
@@ -107,7 +107,7 @@ export const getUserProfile = async (
   try {
     const docSnap = await getDoc(doc(db, "users", uid));
     return docSnap.exists() ? (docSnap.data() as UserProfile) : null;
-  } catch (error: any) {
-    throw new Error(error.message || "Error fetching user profile.");
+  } catch (error: unknown) {
+    throw new Error((error as Error).message || "Error fetching user profile.");
   }
 };

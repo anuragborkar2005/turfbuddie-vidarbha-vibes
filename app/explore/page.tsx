@@ -79,8 +79,7 @@ export default function ExplorePage() {
   const shouldReduceMotion = useReducedMotion();
 
   const [turfs, setTurfs] = useState<Turf[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  
 
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("all");
@@ -155,7 +154,7 @@ export default function ExplorePage() {
       .then((res) => res.json())
       .then((data) => {
         const city =
-          data.results[0]?.address_components.find((c: any) =>
+          data.results[0]?.address_components.find((c: { types: string[] }) =>
             c.types.includes("locality")
           )?.long_name ?? "Unknown";
         console.log(`Your city is ${city}.`);

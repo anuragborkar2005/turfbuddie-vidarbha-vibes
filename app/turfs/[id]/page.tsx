@@ -7,9 +7,9 @@ import { motion, easeInOut } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { BookingFlow } from "@/components/booking/booking-flow";
 import type { Turf, Booking } from "@/lib/types/booking";
-import { DateSelector } from "@/components/date-selecctor";
+import { DateSelector } from "@/components/date-selector";
 
-import { doc, getDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
 interface TurfPageProps {
@@ -17,20 +17,9 @@ interface TurfPageProps {
     id: string;
   };
 }
-type TimeSlot = {
-  bookingDate: Timestamp;
-  commision: number;
-  daySlot: string;
-  monthSlot: string;
-  paid: string;
-  payout: number;
-  status: string | "confirmed" | "pending";
-  timeSlot: string;
-  transactionId: string;
-  userUid: string;
-};
+
 // Helper to map Firestore timeSlots to expected format
-function formatTimeSlots(rawTimeSlots: any[]): Turf["timeSlots"] {
+function formatTimeSlots(rawTimeSlots: Record<string, unknown>[]): Turf["timeSlots"] {
   return rawTimeSlots.map((slot, idx) => ({
     id: `slot_${idx}`,
     startTime: slot.timeSlot?.split(" - ")[0] || "00:00",
