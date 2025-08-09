@@ -143,10 +143,11 @@ export function BookingFlow({
         });
       } else throw new Error("Payment verification failed");
     } catch (error: unknown) {
- toast("Booking Failed", {
-        description: error.message,
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      toast("Booking Failed", {
+        description: errorMessage,
       });
-      console.error(error.message);
+      console.error(errorMessage);
     } finally {
       setLoading(false);
     }
