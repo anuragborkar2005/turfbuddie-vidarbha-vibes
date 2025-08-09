@@ -8,8 +8,29 @@ export async function POST(request: NextRequest) {
     const { paymentId, orderId, signature, bookingData } = await request.json();
 
     // Basic input validation
-    if (!paymentId || !orderId || !signature || !bookingData) {
+    if (!paymentId || !orderId || !bookingData) {
       return NextResponse.json({ error: "Missing required payment data" }, { status: 400 });
+    }
+
+    // In development, skip signature verification for dummy payments
+    if (process.env.NODE_ENV === "development" && paymentId.startsWith("pay_dummy_")) {
+      const booking = {
+        ...bookingData,
+        transactionId: paymentId,
+        status: "confirmed",
+        createdAt: new Date(),
+      };
+
+      try {
+        const docRef = await addDoc(collection(db, "bookings"), booking);
+        return NextResponse.json({ verified: true, bookingId: docRef.id });
+      } catch (firestoreError) {
+        console.error("Error saving booking to Firestore:", firestoreError);
+        return NextResponse.json(
+          { error: "Failed to save booking details" },
+          { status: 500 }
+        );
+      }
     }
 
     // Verify payment signature

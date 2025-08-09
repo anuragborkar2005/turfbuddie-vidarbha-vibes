@@ -119,7 +119,7 @@ export function BookingFlow({
         body: JSON.stringify({
           paymentId,
           orderId,
-          signature: "", // Replace with signature from Razorpay callback
+          signature: "", // Will be empty for development dummy payments
           bookingData: {
             ...bookingData,
             transactionId: paymentId,
