@@ -149,8 +149,10 @@ export default function ExplorePage() {
     return ["all", ...unique];
   }, [turfs]);
 
-  function showCity(position: GeolocationPosition) {} // Keep empty function for API compatibility
- function handleGeolocationError(position: GeolocationPositionError) {} // Keep empty function for API compatibility
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function showCity(_: GeolocationPosition) {} // Keep empty function for API compatibility
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+ function handleGeolocationError(_: GeolocationPositionError) {} // Keep empty function for API compatibility
   const filtered = useMemo(() => {
     return turfs.filter((t) => {
       const inSearch =
