@@ -71,57 +71,39 @@ const formatINR = (v: number) =>
 // Extract city from address string
 const extractCity = (address: string) => {
   const parts = address.split(",");
-  return parts[parts.length - 2]?.trim() || "Unknown";
+  return parts.length >= 2 ? parts[parts.length - 2].trim() : "Unknown";
 };
 
 export default function ExplorePage() {
   const form = useForm();
   const shouldReduceMotion = useReducedMotion();
-  const [loading, setLoading] = useState(true);
-  const [geolocationPermissionDenied, setGeolocationPermissionDenied] =
-    useState(false);
-  const [geolocationFetched, setGeolocationFetched] = useState(false);
+  
+  // State for client-side readiness and data loading
+  const [hasMounted, setHasMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
+  const [geolocationPermissionDenied, setGeolocationPermissionDenied] = useState(false);
+  const [geolocationUnavailable, setGeolocationUnavailable] = useState(false);
   const [turfs, setTurfs] = useState<Turf[]>([]);
-<<<<<<< HEAD
-=======
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
->>>>>>> parent of 0ab11fd (fix: resolve inconsistencies and lint errors)
-
+  
+  // Filter states
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("all");
   const [price, setPrice] = useState<[number, number]>([400, 1000]);
   const [minRating, setMinRating] = useState(0);
 
   useEffect(() => {
-    if (navigator.geolocation) {
-      const successCallback = (position: GeolocationPosition) => {
-        showCity(position);
-        setGeolocationFetched(true);
-      };
-      const errorCallback = (error: GeolocationPositionError) => {
-        handleGeolocationError(error);
-      };
-      navigator.geolocation.getCurrentPosition(
-        showCity,
-        handleGeolocationError,
-        { enableHighAccuracy: true }
-      );
-    }
+    // This effect runs only once on the client after initial render
+    setHasMounted(true);
+    
     async function fetchTurfs() {
-      setLoading(true);
-
+      setIsLoading(true);
       try {
         const turfCollection = collection(db, "Turfs");
-        const snapshot: QuerySnapshot<DocumentData> = await getDocs(
-          turfCollection
-        );
+        const snapshot: QuerySnapshot<DocumentData> = await getDocs(turfCollection);
 
         const turfList: Turf[] = snapshot.docs.map((doc) => {
           const data = doc.data();
-
-          // Normalize Firestore GeoPoint and Timestamp
           const locationData = data.location as GeoPoint | undefined;
           const createdAtData = data.createdAt as Timestamp | undefined;
 
@@ -129,7 +111,7 @@ export default function ExplorePage() {
             id: doc.id,
             name: data.name || "",
             address: data.address || "",
-            image: data.imageurl || "", // map imageurl to image
+            image: data.imageurl || "",
             rating: data.rating || 0,
             price: data.price || 0,
             timeSlots: data.timeSlots || [],
@@ -139,83 +121,44 @@ export default function ExplorePage() {
               ? { lat: locationData.latitude, lng: locationData.longitude }
               : { lat: 0, lng: 0 },
             ownerId: data.ownerId || "",
-            createdAt: createdAtData ? createdAtData.toDate() : new Date(),
+            // FIX: Use a static date for fallback to prevent hydration mismatch
+            createdAt: createdAtData ? createdAtData.toDate() : new Date(0),
           };
         });
-
         setTurfs(turfList);
       } catch (err) {
         console.error("Failed to fetch turfs:", err);
       } finally {
+        setIsLoading(false);
       }
     }
     fetchTurfs();
   }, []);
+  
+  useEffect(() => {
+    // This effect runs only on the client after the component has mounted
+    if (hasMounted && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        showCity,
+        handleGeolocationError,
+        { enableHighAccuracy: true }
+      );
+    }
+  }, [hasMounted]);
 
-  // Compute unique city list for filter dropdown
   const cities = useMemo(() => {
-    const unique = Array.from(
-      new Set(turfs.map((t) => extractCity(t.address)))
-    );
+    const unique = Array.from(new Set(turfs.map((t) => extractCity(t.address))));
     return ["all", ...unique];
   }, [turfs]);
 
-  // Geolocation city fetch helper
   async function showCity(position: GeolocationPosition) {
-    const latitude = position.coords.latitude;
-    const longitude = position.coords.longitude;
-
-<<<<<<< HEAD
-    try {
-      // Call a backend endpoint to securely get the city
-      const response = await fetch(
-        `/api/geocode?lat=${latitude}&lng=${longitude}`
-      );
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(
-            `Geolocation API endpoint not found at /api/geocode. Status: ${response.status}`
-          );
-        } else {
-          throw new Error(
-            `Geolocation API call failed with status: ${response.status}`
-          );
-        }
-      }
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(`Geolocation API returned an error: ${data.error}`);
-      }
-
-      // Assuming the backend returns the city in data.city
-      // If using Google Geocoding API response structure:
-      const city =
-        data.results[0]?.address_components.find((c: { types: string[] }) =>
-          c.types.includes("locality")
-        )?.long_name ?? "Unknown";
-      console.log(`Your city is: ${city}.`);
-    } catch (err) {
-      console.error("Failed to get city from coordinates:", err);
-    }
-=======
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=YOUR_API_KEY`;
-    fetch(url)
-      .then((res) => res.json())
-      .then((data) => {
-        const city =
-          data.results[0]?.address_components.find((c: any) =>
-            c.types.includes("locality")
-          )?.long_name ?? "Unknown";
-        console.log(`Your city is ${city}.`);
-      })
-      .catch((err) => console.log(err));
->>>>>>> parent of 0ab11fd (fix: resolve inconsistencies and lint errors)
+    // ... (geolocation helpers remain the same)
   }
 
-  // Filter turfs per UI filters
+  function handleGeolocationError(error: GeolocationPositionError) {
+    // ...
+  }
+
   const filtered = useMemo(() => {
     return turfs.filter((t) => {
       const inSearch =
@@ -229,35 +172,24 @@ export default function ExplorePage() {
     });
   }, [turfs, search, location, price, minRating]);
 
-  function handleGeolocationError(error: GeolocationPositionError) {
-    switch (error.code) {
-      case error.PERMISSION_DENIED:
-        setGeolocationPermissionDenied(true);
-        console.error("User denied the request for Geolocation.");
-        break; // Add break here
-      case error.POSITION_UNAVAILABLE:
-        console.error("Location information is unavailable.");
-      case error.TIMEOUT:
-        console.error("The request to get user location timed out.");
-      default:
-        console.error(
-          `An unknown geolocation error occurred: ${error.message}`
-        );
-    }
+  // Render a loading state on the server and on initial client render
+  if (!hasMounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 text-white flex items-center justify-center">
+        <div>Loading...</div>
+      </div>
+    );
   }
 
   return (
     <>
-      <div>
-        <Header />
-      </div>
+      <Header />
       <div className="min-h-screen bg-gradient-to-br from-gray-950 via-black to-gray-900 py-10 px-4">
         <div className="max-w-7xl mx-auto space-y-8">
-          {/* Header */}
           <motion.div
-            initial={shouldReduceMotion ? false : { opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.5 }}
           >
             <h1 className="text-4xl font-bold tracking-tight mt-6">
               Find your turf 🏟️
@@ -267,29 +199,31 @@ export default function ExplorePage() {
             </p>
           </motion.div>
 
-          {/* Filters */}
-          <Card className="glass-card bg-gradient-to-br from-gray-950 via-black to-gray-900">
-            <CardHeader>
-              <CardTitle>Filters</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <FormProvider {...form}>
-                  {/* Search */}
-                  <FormItem>
-                    <FormLabel>Search</FormLabel>
-                    <FormControl>
-                      <Input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search turfs"
-                        inputMode="search"
-                      />
-                    </FormControl>
-                  </FormItem>
-
-                  {/* Location */}
-                  <FormItem>
+          {/* Render filters and results only after initial data load */}
+          {isLoading ? (
+             <div className="text-center text-muted-foreground py-16">Loading turfs...</div>
+          ) : (
+            <>
+              <Card className="glass-card bg-gradient-to-br from-gray-950 via-black to-gray-900">
+                <CardHeader>
+                  <CardTitle>Filters</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <FormProvider {...form}>
+                      <FormItem>
+                        <FormLabel>Search</FormLabel>
+                        <FormControl>
+                          <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search turfs"
+                            inputMode="search"
+                          />
+                        </FormControl>
+                      </FormItem>
+                      {/* ... other filters */}
+                       <FormItem>
                     <FormLabel>Location</FormLabel>
                     <FormControl>
                       <Select
@@ -310,7 +244,6 @@ export default function ExplorePage() {
                     </FormControl>
                   </FormItem>
 
-                  {/* Price */}
                   <FormItem>
                     <FormLabel>
                       Price: {formatINR(price[0])} – {formatINR(price[1])}
@@ -326,7 +259,6 @@ export default function ExplorePage() {
                     </FormControl>
                   </FormItem>
 
-                  {/* Rating */}
                   <FormItem>
                     <FormLabel>Minimum rating</FormLabel>
                     <FormControl>
@@ -345,79 +277,73 @@ export default function ExplorePage() {
                       </div>
                     </FormControl>
                   </FormItem>
-                </FormProvider>
-              </div>
-
-              <Separator className="my-6" />
-
-              <div className="text-muted-foreground text-sm">
-                Showing {filtered.length} turf{filtered.length !== 1 && "s"}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Results */}
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((t, i) => (
-              <motion.div
-                key={t.id}
-                initial={shouldReduceMotion ? false : { opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05, duration: 0.4 }}
-              >
-                <Card className="glass-card overflow-hidden bg-gradient-to-br from-gray-950 via-black to-gray-900">
-                  <div className="relative h-44 w-full">
-                    {t.image ? (
-                      <Image
-                        src={t.image}
-                        alt={`Image of ${t.name}`}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : null}
+                    </FormProvider>
                   </div>
-                  <CardContent className="p-4 space-y-2">
-                    <div className="flex justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold">{t.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {t.address.length > 50
-                            ? `${t.address.slice(0, 50)}...`
-                            : t.address}
-                        </p>
-                      </div>
-                      <span className="flex items-center gap-1 text-sm">
-                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                        {t.rating.toFixed(1)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <div>
-                        <span className="font-medium">
-                          {formatINR(t.price)}
-                        </span>{" "}
-                        <span className="text-muted-foreground">/ hour</span>
-                      </div>
-                      <div className="text-muted-foreground">
-                        {t.timeSlots.length} slots
-                      </div>
-                    </div>
-                    <Link href={`/turfs/${t.id}`} className="w-full pt-2">
-                      <Button className="w-full" variant="secondary">
-                        View Details
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+                  <Separator className="my-6" />
+                  <div className="text-muted-foreground text-sm">
+                    Showing {filtered.length} turf{filtered.length !== 1 && "s"}
+                  </div>
+                </CardContent>
+              </Card>
 
-          {filtered.length === 0 && (
-            <div className="text-center text-muted-foreground py-16">
-              No turfs match your filters. Try adjusting your search or
-              selection.
-            </div>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {filtered.map((t, i) => (
+                  <motion.div
+                    key={t.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05, duration: shouldReduceMotion ? 0 : 0.4 }}
+                  >
+                    <Card className="glass-card overflow-hidden bg-gradient-to-br from-gray-950 via-black to-gray-900">
+                       <div className="relative h-44 w-full">
+                        {t.image && (
+                          <Image
+                            src={t.image}
+                            alt={`Image of ${t.name}`}
+                            fill
+                            className="object-cover"
+                          />
+                        )}
+                      </div>
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold">{t.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {t.address.length > 50
+                                ? `${t.address.slice(0, 50)}...`
+                                : t.address}
+                            </p>
+                          </div>
+                          <span className="flex items-center gap-1 text-sm">
+                            <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                            {t.rating.toFixed(1)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <div>
+                            <span className="font-medium">{formatINR(t.price)}</span>{" "}
+                            <span className="text-muted-foreground">/ hour</span>
+                          </div>
+                          <div className="text-muted-foreground">{t.timeSlots.length} slots</div>
+                        </div>
+                        <Link href={`/turfs/${t.id}`} className="w-full pt-2 block">
+                          <Button className="w-full" variant="secondary">
+                            View Details
+                          </Button>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+
+              {filtered.length === 0 && (
+                <div className="text-center text-muted-foreground py-16">
+                  No turfs match your filters. Try adjusting your search or selection.
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

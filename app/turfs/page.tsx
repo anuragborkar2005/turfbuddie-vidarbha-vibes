@@ -7,7 +7,7 @@ import { motion, easeInOut } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { BookingFlow } from "@/components/booking/booking-flow"; // ⬅️ update path as needed
 import type { Turf, TimeSlot, Booking } from "@/lib/types/booking";
-import { DateSelector } from "@/components/date-selecctor";
+import { DateSelector } from "@/components/date-selector";
 
 // Helper to build a mock turf if you’re not fetching from API yet.
 // Replace with real data from your backend/loader.

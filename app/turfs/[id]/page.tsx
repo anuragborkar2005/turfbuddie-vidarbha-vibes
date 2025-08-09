@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, easeInOut } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { BookingFlow } from "@/components/booking/booking-flow";
 import type { Turf, Booking } from "@/lib/types/booking";
-import { DateSelector } from "@/components/date-selecctor";
+import { DateSelector } from "@/components/date-selector"; // Corrected typo
 
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
@@ -31,38 +31,61 @@ function formatTimeSlots(rawTimeSlots: any[]): Turf["timeSlots"] {
 
 export default function TurfDetailsPage({ params }: TurfPageProps) {
   const router = useRouter();
+  // Reverted to direct access to avoid 'Usable' type errors.
+  // This will produce a warning but is supported for migration.
   const turfId = params.id;
+  
   const [turf, setTurf] = useState<Turf | null>(null);
-  const [selectedDate, setSelectedDate] = useState(() => {
+  const [loading, setLoading] = useState(true);
+  const [hasMounted, setHasMounted] = useState(false);
+  const [selectedDate, setSelectedDate] = useState("");
+
+  useEffect(() => {
+    setHasMounted(true); // Ensures date is only set on client
     const d = new Date();
     const off = d.getTimezoneOffset();
     const local = new Date(d.getTime() - off * 60 * 1000);
-    return local.toISOString().slice(0, 10);
-  });
+    setSelectedDate(local.toISOString().slice(0, 10));
+  }, []);
 
   useEffect(() => {
+    if (!turfId) return;
+
     async function fetchTurf() {
+      setLoading(true);
       try {
         const docRef = doc(db, "Turfs", turfId);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
-
+          const locationData = data.location;
+          const createdAtData = data.createdAt;
+          
+          // Completed the turf object to match the 'Turf' type
           setTurf({
             id: turfId,
-            name: data.name,
-            address: data.address,
-            image: data.imageurl,
-            rating: data.rating,
-            price: data.price,
+            name: data.name || "",
+            address: data.address || "",
+            image: data.imageurl || "",
+            rating: data.rating || 0,
+            price: data.price || 0,
             timeSlots: formatTimeSlots(data.timeSlots || []),
+            amenities: data.amenities || [],
+            description: data.description || "",
+            location: locationData
+              ? { lat: locationData.latitude, lng: locationData.longitude }
+              : { lat: 0, lng: 0 },
+            ownerId: data.ownerId || "",
+            createdAt: createdAtData ? createdAtData.toDate() : new Date(0),
           });
         } else {
           console.error("No turf found with ID:", turfId);
         }
       } catch (error) {
         console.error("Error fetching turf:", error);
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -73,10 +96,20 @@ export default function TurfDetailsPage({ params }: TurfPageProps) {
     console.log("Booking complete:", booking);
   };
 
-  if (!turf) {
+  // Prevents hydration errors by rendering a loading state on the server
+  if (!hasMounted || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
         Loading turf details...
+      </div>
+    );
+  }
+
+  // This check is now safe because loading is complete
+  if (!turf) {
+     return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        Turf not found.
       </div>
     );
   }
