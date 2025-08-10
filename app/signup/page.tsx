@@ -105,15 +105,17 @@ export default function SignUpPage() {
         state: data.state,
       });
 
-      toast("Account created! Please check your email for verification.");
+      toast.success(
+        "Account created! Please check your email for verification."
+      );
 
       router.push("/login");
       form.reset();
     } catch (error: unknown) {
       if (error instanceof Error) {
-        toast(error.message);
+        toast.error(error.message);
       } else {
-        toast("An unknown error occurred during signup.");
+        toast.error("An unknown error occurred during signup.");
       }
     } finally {
       setLoading(false);

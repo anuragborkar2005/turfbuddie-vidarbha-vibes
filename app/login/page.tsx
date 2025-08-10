@@ -49,12 +49,12 @@ export default function LoginPage() {
       // TODO: handle success (redirect / dashboard toast)
       const { email, password } = values;
       await login(email, password);
-      toast("Logged in successfully!");
+      toast.success("Logged in successfully!");
       console.log("Logged in successfully!");
       router.push("/explore");
     } catch (e) {
       // TODO: surface an error banner / toast
-      toast("Unable to sign in. Please try again." + e);
+      toast.error("Unable to sign in. Please try again." + e);
       console.error("Unable to sign in. Please try again." + e);
     }
   };
