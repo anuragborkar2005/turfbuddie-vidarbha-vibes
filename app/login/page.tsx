@@ -47,15 +47,14 @@ export default function LoginPage() {
       // simulate API
       // await new Promise((res) => setTimeout(res, 1200));
       // TODO: handle success (redirect / dashboard toast)
-      // e.g., toast.success("Welcome back!");
       const { email, password } = values;
       await login(email, password);
-      toast.success("Logged in successfully!");
+      toast("Logged in successfully!");
       console.log("Logged in successfully!");
       router.push("/explore");
     } catch (e) {
       // TODO: surface an error banner / toast
-      toast.error("Unable to sign in. Please try again." + e);
+      toast("Unable to sign in. Please try again." + e);
       console.error("Unable to sign in. Please try again." + e);
     }
   };

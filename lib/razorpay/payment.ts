@@ -1,5 +1,45 @@
 import { Booking } from "../types/booking";
 
+// Interfaces for a SUCCESSFUL payment
+export interface PaymentSuccessPayload {
+  paymentId: string;
+  orderId: string;
+  signature: string;
+}
+
+interface RazorpayHandlerResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+// NEW: Interfaces for a FAILED payment
+interface RazorpayErrorPayload {
+  code: string;
+  description: string;
+  source: string;
+  step: string;
+  reason: string;
+  metadata: {
+    order_id: string;
+    payment_id: string;
+  };
+}
+
+interface RazorpayErrorResponse {
+  error: RazorpayErrorPayload;
+}
+
+// The Razorpay instance, now fully typed
+interface RazorpayInstance {
+  open(): void;
+  // NEW: Replaced `any` with the specific error response type
+  on(
+    event: "payment.failed",
+    callback: (response: RazorpayErrorResponse) => void
+  ): void;
+}
+
 interface RazorpayOptions {
   key: string;
   amount: string;
@@ -15,7 +55,7 @@ interface RazorpayOptions {
   theme?: {
     color?: string;
   };
-  handler: (response: RazorpayResponse) => void;
+  handler: (response: RazorpayHandlerResponse) => void;
   modal?: {
     ondismiss?: () => void;
   };
@@ -25,16 +65,6 @@ declare global {
   interface Window {
     Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
   }
-}
-
-interface RazorpayResponse {
-  razorpay_payment_id: string;
-  razorpay_order_id: string;
-  razorpay_signature: string;
-}
-
-interface RazorpayInstance {
-  open(): void;
 }
 
 export interface PaymentOptions {
@@ -49,7 +79,10 @@ export interface PaymentOptions {
   bookingDetails: Omit<Booking, "id" | "transactionId" | "createdAt">;
 }
 
-export const initiatePayment = (options: PaymentOptions): Promise<string> => {
+// The rest of the file remains the same...
+export const initiatePayment = (
+  options: PaymentOptions
+): Promise<PaymentSuccessPayload> => {
   return new Promise((resolve, reject) => {
     const key = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     if (!key) {
@@ -57,9 +90,12 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
       return;
     }
 
-    // Check if Razorpay is loaded
-    if (typeof window === 'undefined' || !window.Razorpay) {
-      reject(new Error("Razorpay SDK not loaded. Please refresh the page and try again."));
+    if (typeof window === "undefined" || !window.Razorpay) {
+      reject(
+        new Error(
+          "Razorpay SDK not loaded. Please refresh the page and try again."
+        )
+      );
       return;
     }
 
@@ -79,8 +115,11 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
         color: "#16A249",
       },
       handler(response) {
-        // For real Razorpay payments, resolve with payment ID (signature will be handled separately)
-        resolve(response.razorpay_payment_id);
+        resolve({
+          paymentId: response.razorpay_payment_id,
+          orderId: response.razorpay_order_id,
+          signature: response.razorpay_signature,
+        });
       },
       modal: {
         ondismiss() {
@@ -89,21 +128,33 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
       },
     };
 
-    // For development, you can choose to use dummy payment or real Razorpay
-    // To test real Razorpay window in development, set NEXT_PUBLIC_TEST_RAZORPAY=true
-    if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_TEST_RAZORPAY !== "true") {
+    if (
+      process.env.NODE_ENV === "development" &&
+      process.env.NEXT_PUBLIC_TEST_RAZORPAY !== "true"
+    ) {
       console.log("Development mode: Using dummy payment");
       setTimeout(() => {
-        resolve("pay_dummy_" + Date.now());
+        resolve({
+          paymentId: "pay_dummy_" + Date.now(),
+          orderId: options.orderId,
+          signature: "development_signature",
+        });
       }, 2000);
       return;
     }
 
     try {
       const razorpay = new window.Razorpay(razorpayOptions);
+      // Example of how you might handle a failure event
+      razorpay.on("payment.failed", (response) => {
+        console.error("Payment Failed:", response.error.description);
+        reject(new Error(response.error.description));
+      });
       razorpay.open();
     } catch (error) {
-      reject(new Error("Failed to open payment window: " + (error as Error).message));
+      reject(
+        new Error("Failed to open payment window: " + (error as Error).message)
+      );
     }
   });
 };
@@ -111,25 +162,39 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
 export const verifyPayment = async (
   paymentId: string,
   orderId: string,
-  signature: string
-): Promise<boolean> => {
-  try {
-    const response = await fetch("/api/payment/verify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        paymentId,
-        orderId,
-        signature,
-      }),
-    });
+  signature: string,
+  bookingData: Omit<Booking, "id" | "createdAt">
+): Promise<{ verified: boolean; booking?: Booking }> => {
+  const response = await fetch("/api/payment/verify", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      paymentId,
+      orderId,
+      signature,
+      bookingData,
+    }),
+  });
 
-    const result = await response.json();
-    return result.verified;
-  } catch (error) {
+  if (!response.ok) {
+    let error;
+    try {
+      const errorData = await response.json();
+      error = new Error(errorData.error || "Payment verification failed");
+    } catch (e) {
+      error = new Error(
+        `Payment verification failed with status: ${response.status} + ${e}`
+      );
+    }
     console.error("Payment verification failed:", error);
-    return false;
+    throw error;
   }
+
+  const result = (await response.json()) as {
+    verified: boolean;
+    booking?: Booking;
+  };
+  return result;
 };

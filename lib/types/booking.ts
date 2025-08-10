@@ -32,8 +32,12 @@ export interface Booking {
   monthSlot: string;
   userUid: string;
   transactionId: string;
-  status: "pending" | "confirmed" | "cancelled" | "completed" | "booked_offline";
-  bookingDate: Date;
+  status:
+    | "pending"
+    | "confirmed"
+    | "cancelled"
+    | "completed"
+    | "booked_offline";
   price: number;
   commission?: number; // Optional for offline bookings
   commision?: number; // Typo in database - keeping for compatibility
@@ -59,4 +63,11 @@ export interface Tournament {
   rules: string[];
   organizer: string;
   createdAt: Date;
+}
+export interface TimeSlot {
+  id: string;
+  startTime: string;
+  endTime: string;
+  price: number;
+  // The isAvailable property has been removed
 }

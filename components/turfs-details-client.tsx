@@ -82,7 +82,7 @@ export default function TurfDetailsClient({
               {/* Embedded Calendar22 */}
               <div className="flex flex-col gap-3">
                 <Label htmlFor="date" className="px-1 text-white">
-                  Date of birth
+                  Select Date
                 </Label>
                 <Popover open={open} onOpenChange={setOpen}>
                   <PopoverTrigger asChild>

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Turf } from "@/lib/types/booking";
-import TurfDetailsClient from "./TurfsDetailsClient";
+import TurfDetailsClient from "@/components/turfs-details-client";
 
 async function fetchTurf(id: string): Promise<Turf | null> {
   const { doc, getDoc } = await import("firebase/firestore");

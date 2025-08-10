@@ -5,8 +5,10 @@ import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(request: NextRequest) {
+  console.log("Payment verification request received.");
   try {
     const { paymentId, orderId, signature, bookingData } = await request.json();
+    console.log("Request body parsed successfully.", { paymentId, orderId });
 
     // Validate that all required data, including turfId, is present
     if (
@@ -16,6 +18,7 @@ export async function POST(request: NextRequest) {
       !bookingData ||
       !bookingData.turfId
     ) {
+      console.error("Missing required payment data.");
       return NextResponse.json(
         { error: "Missing required payment data or turfId." },
         { status: 400 }
@@ -32,6 +35,7 @@ export async function POST(request: NextRequest) {
       console.log("Development mode: Accepting dummy payment signature.");
       isAuthentic = true;
     } else {
+      console.log("Performing production signature verification.");
       // Production-level signature verification
       const body = orderId + "|" + paymentId;
       const expectedSignature = crypto
@@ -40,6 +44,7 @@ export async function POST(request: NextRequest) {
         .digest("hex");
 
       isAuthentic = expectedSignature === signature;
+      console.log(`Signature verification result: ${isAuthentic}`);
     }
 
     if (isAuthentic) {
@@ -47,10 +52,7 @@ export async function POST(request: NextRequest) {
       const commission = bookingData.commission || bookingData.price * 0.094;
       const payout = bookingData.payout || bookingData.price - commission;
 
-      // Convert bookingDate to Firestore Timestamp format
-      const bookingDate = bookingData.bookingDate instanceof Date 
-        ? bookingData.bookingDate 
-        : new Date(bookingData.bookingDate);
+      // Convert bookingDate to Firestore Timestamp forma
 
       // This is the object that will be added to the timeSlots array
       const newBookingSlot = {
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
         price: bookingData.price,
         transactionId: paymentId,
         status: "confirmed",
-        bookingDate: bookingDate, // Use the converted date
+        bookingDate: new Date(), // Use the current server date
         commission: Math.round(commission * 1000) / 1000, // Round to 3 decimal places
         commision: Math.round(commission * 1000) / 1000, // Keep typo for database consistency
         payout: Math.round(payout * 1000) / 1000, // Round to 3 decimal places
@@ -70,6 +72,7 @@ export async function POST(request: NextRequest) {
 
       // Get a reference to the specific turf document using the Admin SDK
       const turfDocRef = adminDb.collection("Turfs").doc(bookingData.turfId);
+      console.log(`Attempting to update Firestore document: ${bookingData.turfId}`);
 
       try {
         // Atomically update the document by adding the new booking to the array
@@ -91,6 +94,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // If the signature is invalid
+      console.error("Invalid payment signature.");
       return NextResponse.json(
         { verified: false, error: "Invalid payment signature." },
         { status: 400 }
