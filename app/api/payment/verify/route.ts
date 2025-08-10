@@ -1,73 +1,105 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { addDoc, collection } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+// Use the Admin SDK for server-side operations
+import { adminDb } from "@/lib/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(request: NextRequest) {
   try {
     const { paymentId, orderId, signature, bookingData } = await request.json();
 
-    // Basic input validation
-    if (!paymentId || !orderId || !bookingData) {
-      return NextResponse.json({ error: "Missing required payment data" }, { status: 400 });
+    // Validate that all required data, including turfId, is present
+    if (
+      !paymentId ||
+      !orderId ||
+      !signature ||
+      !bookingData ||
+      !bookingData.turfId
+    ) {
+      return NextResponse.json(
+        { error: "Missing required payment data or turfId." },
+        { status: 400 }
+      );
     }
 
-    // In development, skip signature verification for dummy payments
-    if (process.env.NODE_ENV === "development" && paymentId.startsWith("pay_dummy_")) {
-      const booking = {
-        ...bookingData,
-        transactionId: paymentId,
-        status: "confirmed",
-        createdAt: new Date(),
-      };
+    let isAuthentic = false;
 
-      try {
-        const docRef = await addDoc(collection(db, "bookings"), booking);
-        return NextResponse.json({ verified: true, bookingId: docRef.id });
-      } catch (firestoreError) {
-        console.error("Error saving booking to Firestore:", firestoreError);
-        return NextResponse.json(
-          { error: "Failed to save booking details" },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Verify payment signature
-    const body = orderId + "|" + paymentId;
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
-      .update(body.toString())
-      .digest("hex");
-
-    const isAuthentic = expectedSignature === signature;
-    if (isAuthentic) {
-      // Save booking to Firestore
-      const booking = {
-        ...bookingData,
-        transactionId: paymentId,
-        status: "confirmed",
-        createdAt: new Date(),
-      };
-
-      try {
-        const docRef = await addDoc(collection(db, "bookings"), booking);
-        return NextResponse.json({ verified: true, bookingId: docRef.id });
-      } catch (firestoreError) {
-        console.error("Error saving booking to Firestore:", firestoreError);
-        return NextResponse.json(
-          { error: "Failed to save booking details" },
-          { status: 500 }
-        );
-      }
-
+    // Special handling for development mode to allow dummy payments
+    if (
+      process.env.NODE_ENV === "development" &&
+      signature === "development_signature"
+    ) {
+      console.log("Development mode: Accepting dummy payment signature.");
+      isAuthentic = true;
     } else {
-      return NextResponse.json({ verified: false }, { status: 400 });
+      // Production-level signature verification
+      const body = orderId + "|" + paymentId;
+      const expectedSignature = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(body.toString())
+        .digest("hex");
+
+      isAuthentic = expectedSignature === signature;
+    }
+
+    if (isAuthentic) {
+      // Calculate commission and payout if not already provided
+      const commission = bookingData.commission || bookingData.price * 0.094;
+      const payout = bookingData.payout || bookingData.price - commission;
+
+      // Convert bookingDate to Firestore Timestamp format
+      const bookingDate = bookingData.bookingDate instanceof Date 
+        ? bookingData.bookingDate 
+        : new Date(bookingData.bookingDate);
+
+      // This is the object that will be added to the timeSlots array
+      const newBookingSlot = {
+        daySlot: bookingData.daySlot,
+        monthSlot: bookingData.monthSlot,
+        timeSlot: bookingData.timeSlot,
+        userUid: bookingData.userUid,
+        price: bookingData.price,
+        transactionId: paymentId,
+        status: "confirmed",
+        bookingDate: bookingDate, // Use the converted date
+        commission: Math.round(commission * 1000) / 1000, // Round to 3 decimal places
+        commision: Math.round(commission * 1000) / 1000, // Keep typo for database consistency
+        payout: Math.round(payout * 1000) / 1000, // Round to 3 decimal places
+        paid: "Not Paid to Owner", // Default for new bookings
+      };
+
+      // Get a reference to the specific turf document using the Admin SDK
+      const turfDocRef = adminDb.collection("Turfs").doc(bookingData.turfId);
+
+      try {
+        // Atomically update the document by adding the new booking to the array
+        await turfDocRef.update({
+          timeSlots: FieldValue.arrayUnion(newBookingSlot),
+        });
+
+        console.log(`Booking added to turf: ${bookingData.turfId}`);
+        return NextResponse.json({
+          verified: true,
+          turfId: bookingData.turfId,
+        });
+      } catch (dbError) {
+        console.error("Error updating Firestore document:", dbError);
+        return NextResponse.json(
+          { error: "Failed to save booking to the database." },
+          { status: 500 }
+        );
+      }
+    } else {
+      // If the signature is invalid
+      return NextResponse.json(
+        { verified: false, error: "Invalid payment signature." },
+        { status: 400 }
+      );
     }
   } catch (error) {
-    console.error("Payment verification process error:", error);
+    console.error("Overall payment verification error:", error);
     return NextResponse.json(
-      { error: "Payment verification failed" },
+      { error: "An unexpected error occurred." },
       { status: 500 }
     );
   }

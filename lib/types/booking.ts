@@ -32,13 +32,14 @@ export interface Booking {
   monthSlot: string;
   userUid: string;
   transactionId: string;
-  status: "pending" | "confirmed" | "cancelled" | "completed";
+  status: "pending" | "confirmed" | "cancelled" | "completed" | "booked_offline";
   bookingDate: Date;
   price: number;
-  commission: number;
-  payout: number;
-  paid: "Not Paid to Owner" | "Paid to Owner";
-  createdAt: Date;
+  commission?: number; // Optional for offline bookings
+  commision?: number; // Typo in database - keeping for compatibility
+  payout?: number; // Optional for offline bookings
+  paid?: "Not Paid to Owner" | "Paid to Owner"; // Optional for offline bookings
+  createdAt?: Date; // Optional since some bookings might not have this
 }
 
 export interface Tournament {

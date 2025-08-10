@@ -45,14 +45,7 @@ export function BookingFlow({
     [dateObj]
   );
 
-  const monthSlotLongYear = useMemo(
-    () =>
-      dateObj.toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      }),
-    [dateObj]
-  );
+  // Removed unused monthSlotLongYear variable
 
   const handleSlotSelection = (slot: TimeSlot) => {
     if (slot.isAvailable) setSelectedSlot(slot);
@@ -76,7 +69,7 @@ export function BookingFlow({
         throw new Error(`Create order failed: ${errorText}`);
       }
 
-      const { orderId } = await orderResponse.json();
+      const { orderId, amount } = await orderResponse.json();
 
       if (!orderId)
         throw new Error("Invalid orderId received from create-order API");
@@ -87,9 +80,9 @@ export function BookingFlow({
 
       const bookingData: Omit<Booking, "id" | "transactionId" | "createdAt"> = {
         turfId: turf.id,
-        timeSlot: `${selectedSlot.startTime}-${selectedSlot.endTime}`,
+        timeSlot: `${selectedSlot.startTime} - ${selectedSlot.endTime}`, // Format consistent with database
         daySlot, // e.g., "Thursday"
-        monthSlot: monthSlotLongYear, // e.g., "August 2025" (kept long for DB)
+        monthSlot: monthSlotShort, // Use short format like "21 Jul" to match database
         userUid: user.uid,
         status: "pending",
         bookingDate: dateObj,
@@ -101,7 +94,7 @@ export function BookingFlow({
 
       // Initiate payment
       const paymentId = await initiatePayment({
-        amount: selectedSlot.price.toString(),
+        amount: amount.toString(), // Use amount in paise from API response
         currency: "INR",
         orderId,
         userDetails: {
@@ -112,6 +105,8 @@ export function BookingFlow({
         bookingDetails: bookingData,
       });
 
+      console.log("Payment completed with ID:", paymentId);
+
       // Verify payment and save booking
       const verifyResponse = await fetch("/api/payment/verify", {
         method: "POST",
@@ -119,7 +114,7 @@ export function BookingFlow({
         body: JSON.stringify({
           paymentId,
           orderId,
-          signature: "", // Will be empty for development dummy payments
+          signature: process.env.NODE_ENV === "development" ? "development_signature" : "", // Use development signature for dummy payments
           bookingData: {
             ...bookingData,
             transactionId: paymentId,
@@ -143,7 +138,8 @@ export function BookingFlow({
         });
       } else throw new Error("Payment verification failed");
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
       toast("Booking Failed", {
         description: errorMessage,
       });

@@ -57,6 +57,12 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
       return;
     }
 
+    // Check if Razorpay is loaded
+    if (typeof window === 'undefined' || !window.Razorpay) {
+      reject(new Error("Razorpay SDK not loaded. Please refresh the page and try again."));
+      return;
+    }
+
     const razorpayOptions: RazorpayOptions = {
       key,
       amount: options.amount,
@@ -73,6 +79,7 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
         color: "#16A249",
       },
       handler(response) {
+        // For real Razorpay payments, resolve with payment ID (signature will be handled separately)
         resolve(response.razorpay_payment_id);
       },
       modal: {
@@ -82,15 +89,22 @@ export const initiatePayment = (options: PaymentOptions): Promise<string> => {
       },
     };
 
-    if (process.env.NODE_ENV === "development") {
+    // For development, you can choose to use dummy payment or real Razorpay
+    // To test real Razorpay window in development, set NEXT_PUBLIC_TEST_RAZORPAY=true
+    if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_TEST_RAZORPAY !== "true") {
+      console.log("Development mode: Using dummy payment");
       setTimeout(() => {
         resolve("pay_dummy_" + Date.now());
       }, 2000);
       return;
     }
 
-    const razorpay = new window.Razorpay(razorpayOptions);
-    razorpay.open();
+    try {
+      const razorpay = new window.Razorpay(razorpayOptions);
+      razorpay.open();
+    } catch (error) {
+      reject(new Error("Failed to open payment window: " + (error as Error).message));
+    }
   });
 };
 

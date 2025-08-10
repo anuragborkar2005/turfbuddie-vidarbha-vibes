@@ -10,8 +10,21 @@ export async function POST(request: NextRequest) {
   try {
     const { amount, currency = "INR" } = await request.json();
 
+    // Validate amount
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return NextResponse.json(
+        { error: "Invalid amount provided" },
+        { status: 400 }
+      );
+    }
+
+    // Convert amount to paise (smallest currency unit) for Razorpay
+    const amountInPaise = Math.round(parseFloat(amount) * 100);
+
+    console.log(`Creating Razorpay order: Amount ₹${amount} (${amountInPaise} paise)`);
+
     const order = await razorpay.orders.create({
-      amount,
+      amount: amountInPaise,
       currency,
       receipt: `receipt_${Date.now()}`,
     });
